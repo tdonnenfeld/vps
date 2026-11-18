@@ -1,0 +1,51 @@
+name: PhD production integration smoke
+
+on:
+  push:
+    branches:
+      - test/phd-production-integrations
+    paths:
+      - scripts/phd-production-smoke.sh
+      - .github/workflows/phd-production-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phd-production-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up VPS SSH
+        shell: bash
+        env:
+          PALMA_DEPLOY_KEY: ${{ secrets.PALMA_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$PALMA_DEPLOY_KEY" > ~/.ssh/palma_ci
+          chmod 600 ~/.ssh/palma_ci
+          for i in 1 2 3 4 5; do
+            ssh-keyscan -H 185.196.20.127 >> ~/.ssh/known_hosts 2>/dev/null && break
+            sleep 5
+          done
+
+      - name: Test real PhD production services without public credentials
+        shell: bash
+        run: |
+          ssh -o BatchMode=yes -o ConnectTimeout=15 -i ~/.ssh/palma_ci \
+            theo@185.196.20.127 'sudo bash -s' < scripts/phd-production-smoke.sh
+
+      - name: Explain scope
+        if: always()
+        run: |
+          echo "### VPS-local PhD smoke test" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tests production journal CRUD, link persistence, Vikunja read, MLflow read, activity, and deletion of temporary journal data." >> "$GITHUB_STEP_SUMMARY"
+          echo "No permanent production tasks or experiments are created." >> "$GITHUB_STEP_SUMMARY"
