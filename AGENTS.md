@@ -206,6 +206,18 @@ Required GitHub Actions **secrets** (never committed):
 
 The deploy key is restricted (`no-port-forwarding,no-agent-forwarding,no-X11-forwarding`) but has full shell + sudo as `theo` (required for Ansible module execution). To require manual approval before apply, protect the `production` environment in GitHub (Settings → Environments → production → Required reviewers).
 
+### GitHub Actions IP whitelist (fail2ban)
+
+GitHub-hosted runners share egress IPs with other GitHub users, so those IPs get brute-forced and banned by fail2ban, which then blocks our own CI. The `security` role appends GitHub's current Actions IP ranges to fail2ban's `ignoreip` from `roles/security/files/github-actions-ips.txt` (rendered into `jail.local`).
+
+The list changes over time — refresh it periodically with:
+
+```bash
+curl -s https://api.github.com/meta | python3 -c "import sys,json; print('\n'.join(sorted(json.load(sys.stdin)['actions'])))" > ansible/roles/security/files/github-actions-ips.txt
+```
+
+The UFW `22/tcp LIMIT` rate-limit is intentionally left in place (Ansible reuses a single SSH connection, so it's not a bottleneck).
+
 ## Important Notes
 
 - **Vault must be encrypted before committing**: `ansible-vault encrypt ansible/group_vars/vps.vault.yml`
