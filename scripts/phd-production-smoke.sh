@@ -19,7 +19,8 @@ const base = "http://127.0.0.1:3000";
 const username = process.env.ALLOWED_USER;
 assert(username, "ALLOWED_USER is not configured");
 const title = "Automated VPS smoke " + randomUUID();
-const today = new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Madrid",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Madrid",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()).filter(p=>p.type!=="literal").map(p=>[p.type,p.value]));
+const today = parts.year+"-"+parts.month+"-"+parts.day;
 let entryId = null;
 let mainError = null;
 
