@@ -15,10 +15,11 @@
 
 set -euo pipefail
 
-# --- Rate limiting ---
-# WHY: In addition to fail2ban, UFW rate limiting provides a first line
-# of defense against SSH brute force. Limits to 6 connections per 30s.
-ufw limit ssh/tcp comment 'Rate limit SSH connections'
+# --- Rate limiting (REMOVED) ---
+# WHY: `ufw limit` REJECTs (not drops) when a source IP exceeds 6 conn/30s.
+# GitHub-hosted runners share egress IPs with other users, so they exceed the
+# limit and get "Connection refused", breaking CI. fail2ban (maxretry 5) already
+# provides brute-force protection, so the LIMIT is redundant and was removed.
 
 # --- Docker networks ---
 # WHY: Docker manages its own iptables rules. We need to ensure UFW

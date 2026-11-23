@@ -216,7 +216,7 @@ The list changes over time — refresh it periodically with:
 curl -s https://api.github.com/meta | python3 -c "import sys,json; print('\n'.join(sorted(json.load(sys.stdin)['actions'])))" > ansible/roles/security/files/github-actions-ips.txt
 ```
 
-The UFW `22/tcp LIMIT` rate-limit is intentionally left in place (Ansible reuses a single SSH connection, so it's not a bottleneck).
+The UFW `22/tcp LIMIT` rate-limit was **removed**: UFW's `limit` REJECTs (ICMP port-unreachable) instead of dropping when a source IP exceeds 6 conn/30s, which broke CI (shared GitHub egress IPs → "Connection refused"). fail2ban (`maxretry 5`) is the remaining SSH brute-force protection.
 
 ## Important Notes
 
