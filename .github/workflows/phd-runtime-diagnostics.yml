@@ -50,7 +50,12 @@ jobs:
           for vault in "$root"/*/; do
             [ -d "$vault" ] || continue
             files="$(find "$vault" -type f -iname '*.md' -printf '%f\\n')"
-            exact="$(printf '%s\\n' "$files" | grep -Ec '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\.md || true)"
+            exact="$(printf '%s\\n' "$files" | grep -Ec '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\.md
+            dated="$(printf '%s\\n' "$files" | grep -Ec '[0-9]{4}[-_.][0-9]{2}[-_.][0-9]{2}|[0-9]{2}[-_.][0-9]{2}[-_.][0-9]{4}|[0-9]{8}' || true)"
+            echo "Vault $(basename "$vault"): exact_iso=$exact any_date_pattern=$dated"
+          done
+          REMOTE
+ || true)"
             dated="$(printf '%s\\n' "$files" | grep -Ec '[0-9]{4}[-_.][0-9]{2}[-_.][0-9]{2}|[0-9]{2}[-_.][0-9]{2}[-_.][0-9]{4}|[0-9]{8}' || true)"
             echo "Vault $(basename "$vault"): exact_iso=$exact any_date_pattern=$dated"
           done
