@@ -5,6 +5,7 @@
 # behind Traefik + Authelia (forward auth). Uses the existing stack Postgres
 # (phd_hub + mlflow databases) and Vikunja on the stack_internal network.
 #
+#
 # Prerequisites (manual, one-time on the host):
 #   - SSH deploy key present at {{ phd_git_key_file }} with access to the repo
 #   - DNS record {{ subdomain_phd }}.{{ domain }} -> {{ ansible_default_ipv4.address | default('185.196.20.127') }}
@@ -81,7 +82,6 @@
     name: web-phd
     state: started
     enabled: true
-
 
 # Quartz is built from all approved Syncthing vault folders into a staging copy.
 # The source vaults remain untouched and are never mounted into the web container.
