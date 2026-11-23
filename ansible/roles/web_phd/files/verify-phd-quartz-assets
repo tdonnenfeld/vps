@@ -13,7 +13,7 @@ const headers = {"Remote-User":process.env.ALLOWED_USER || ""};
 
 function htmlAttributes(tag){
   const attrs={};
-  for(const match of tag.matchAll(/([:\\w-]+)\\s*=\\s*(["'])(.*?)\\2/g))attrs[match[1].toLowerCase()]=match[3];
+  for(const match of tag.matchAll(/([:\w-]+)\s*=\s*(["'])(.*?)\2/g))attrs[match[1].toLowerCase()]=match[3];
   return attrs;
 }
 async function verifyEmittedAssets(page){
@@ -23,10 +23,10 @@ async function verifyEmittedAssets(page){
   const html=await response.text();
   assert(!/Knowledge base not (published|built) yet/i.test(html),"Quartz setup placeholder is not a completed build");
   const assets=[];
-  for(const match of html.matchAll(/<(link|script)\\b[^>]*>/gi)){
+  for(const match of html.matchAll(/<(link|script)\b[^>]*>/gi)){
     const attrs=htmlAttributes(match[0]);
     const tag=match[1].toLowerCase();
-    if(tag==="link"&&/\\bstylesheet\\b/i.test(attrs.rel||"")&&attrs.href)assets.push({url:attrs.href,type:"text/css"});
+    if(tag==="link"&&/\bstylesheet\b/i.test(attrs.rel||"")&&attrs.href)assets.push({url:attrs.href,type:"text/css"});
     if(tag==="script"&&attrs.src)assets.push({url:attrs.src,type:"javascript"});
   }
   let css=0,js=0;
