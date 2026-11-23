@@ -136,3 +136,21 @@
     enabled: true
     state: started
   when: not ansible_check_mode
+
+
+- name: Install private Quartz asset health check
+  ansible.builtin.copy:
+    src: verify-phd-quartz-assets
+    dest: /usr/local/sbin/verify-phd-quartz-assets
+    mode: "0755"
+
+# The rebuild task notifies a handler, so flush it before testing the newly
+# created container rather than the old production image.
+- name: Apply pending PhD container refresh before checking Knowledge assets
+  ansible.builtin.meta: flush_handlers
+  when: not ansible_check_mode
+
+- name: Verify Quartz assets through the freshly deployed Next.js proxy
+  ansible.builtin.command: /usr/local/sbin/verify-phd-quartz-assets
+  changed_when: false
+  when: not ansible_check_mode
