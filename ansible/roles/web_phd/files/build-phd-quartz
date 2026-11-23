@@ -11,7 +11,7 @@ exec 9>"$HUB_DIR/data/quartz-build.lock"
 flock -n 9 || exit 0
 
 test -d "$VAULTS_DIR" || { echo "Missing vault root: $VAULTS_DIR" >&2; exit 1; }
-test -f "$SOURCE_DIR/quartz.config.ts" || { echo "Quartz checkout not prepared" >&2; exit 1; }
+test -f "$HUB_DIR/data/quartz.config.ts" || { echo "Quartz configuration not prepared" >&2; exit 1; }
 command -v rsync >/dev/null || { echo "rsync is required" >&2; exit 1; }
 
 stage="$(mktemp -d "$HUB_DIR/data/quartz-stage.XXXXXX")"
