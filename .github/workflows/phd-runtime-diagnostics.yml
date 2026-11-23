@@ -36,13 +36,4 @@ jobs:
           else
             echo "Quartz homepage present: no"
           fi
-          root="/opt/services/shared/obsidian/vaults"
-          echo "=== Dated-note candidates, counts only ==="
-          for vault in "$root"/*/; do
-            [ -d "$vault" ] || continue
-            count="$(find "$vault" -type f -iname '*.md' | wc -l)"
-            iso="$(find "$vault" -type f -name '????-??-??.md' | wc -l)"
-            year="$(find "$vault" -type f -iname '*2026*.md' | wc -l)"
-            echo "Vault $(basename "$vault"): markdown=$count iso_day=$iso year_named=$year"
-          done
           REMOTE
