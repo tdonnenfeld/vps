@@ -1,9 +1,9 @@
 ---
-# web_phd — PhD Research Hub (Next.js journal + MLflow + Quartz nginx)
+# web_phd — PhD Research Hub (Next.js journal + source-linked experiments + Quartz nginx)
 #
 # Clones the tdonnenfeld/web-phd project and deploys it at https://{{ subdomain_phd }}.{{ domain }}
 # behind Traefik + Authelia (forward auth). Uses the existing stack Postgres
-# (phd_hub + mlflow databases) and Vikunja on the stack_internal network.
+# (phd_hub database) and Vikunja on the stack_internal network.
 #
 # Prerequisites (manual, one-time on the host):
 #   - SSH deploy key present at {{ phd_git_key_file }} with access to the repo
@@ -17,7 +17,6 @@
   loop:
     - "{{ phd_hub_dir }}"
     - "{{ phd_hub_dir }}/quartz/public"
-    - "{{ phd_hub_dir }}/data/mlflow"
 
 - name: Clone or update web-phd repository
   ansible.builtin.git:
@@ -50,13 +49,7 @@
     mode: "0644"
   when: not phd_quartz_index.stat.exists
 
-- name: Copy patched mlflow Dockerfile
-  ansible.builtin.copy:
-    src: mlflow.Dockerfile
-    dest: "{{ phd_hub_dir }}/infrastructure/mlflow.patched.Dockerfile"
-    mode: "0644"
-
-- name: Render compose override (fix mlflow 3.4.0 flags/deps)
+- name: Render PhD Compose override (read-only Obsidian vault)
   ansible.builtin.template:
     src: compose.override.yml.j2
     dest: "{{ phd_hub_dir }}/infrastructure/compose.override.yml"
