@@ -1,0 +1,81 @@
+name: Redeploy web-phd
+
+# Manually redeploy the latest *merged* web-phd/main application.
+# Does not deploy unmerged PR branches or touch unrelated Ansible roles.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Share the lock with the existing production Deploy workflow.
+# A manual redeploy must never race a merge-triggered VPS deployment.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  redeploy:
+    name: Rebuild and deploy web-phd to palma
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    steps:
+      - name: Check out VPS production configuration
+        uses: actions/checkout@v4
+
+      - name: Require main branch
+        shell: bash
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [[ "$REF" != "refs/heads/main" ]]; then
+            echo "::error::Select the main branch when running this workflow."
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible and collections
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible
+          ansible-galaxy collection install community.general
+
+      - name: Configure Ansible vault password and VPS SSH key
+        shell: bash
+        env:
+          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+          PALMA_DEPLOY_KEY: ${{ secrets.PALMA_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$ANSIBLE_VAULT_PASSWORD"
+          test -n "$PALMA_DEPLOY_KEY"
+          printf '%s\n' "$ANSIBLE_VAULT_PASSWORD" > vault.pass
+          chmod 600 vault.pass
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$PALMA_DEPLOY_KEY" > "$HOME/.ssh/palma_ci"
+          chmod 600 "$HOME/.ssh/palma_ci"
+          for i in 1 2 3 4 5; do
+            ssh-keyscan -H 185.196.20.127 >> "$HOME/.ssh/known_hosts" 2>/dev/null && break
+            sleep 5
+          done
+
+      - name: Syntax check
+        run: |
+          ansible-playbook -i ansible/inventory.ini ansible/site.yml \
+            --syntax-check \
+            --vault-password-file vault.pass
+
+      - name: Redeploy web-phd only
+        run: |
+          # The web_phd role pulls web-phd/main on palma, rebuilds the image,
+          # recreates phd-web and verifies live Quartz asset routes.
+          ansible-playbook -i ansible/inventory.ini ansible/site.yml \
+            --vault-password-file vault.pass \
+            -e "vps_ssh_private_key_file=$HOME/.ssh/palma_ci" \
+            --tags web_phd
