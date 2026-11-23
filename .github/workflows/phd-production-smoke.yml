@@ -8,6 +8,9 @@ on:
       - scripts/phd-production-smoke.sh
       - .github/workflows/phd-production-smoke.yml
   workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/phd-production-smoke.yml
 
 permissions:
   contents: read
@@ -22,6 +25,15 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
+
+      - name: Diagnose runner to VPS SSH connectivity
+        shell: bash
+        run: |
+          echo "GitHub runner public IPv4:"
+          curl -4 --fail --silent --show-error --max-time 10 https://api.ipify.org || true
+          echo
+          echo "Testing TCP 185.196.20.127:22:"
+          timeout 10 bash -c "echo > /dev/tcp/185.196.20.127/22" && echo "TCP connection accepted" || echo "::warning::TCP connection failed before SSH authentication"
 
       - name: Set up VPS SSH
         shell: bash
