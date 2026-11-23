@@ -44,10 +44,12 @@
     mode: "0755"
     extra_opts:
       - --strip-components=0
-  when: >-
-    not rmapi_binary_check.stat.exists
-    or (rmapi_version_installed.stdout is defined
-        and rmapi_version not in rmapi_version_installed.stdout)
+  when:
+    - not ansible_check_mode
+    - >-
+      not rmapi_binary_check.stat.exists
+      or (rmapi_version_installed.stdout is defined
+          and rmapi_version not in rmapi_version_installed.stdout)
 
 - name: Remove downloaded archive
   ansible.builtin.file:
@@ -78,10 +80,12 @@
   register: rmapi_verify
   changed_when: false
   failed_when: rmapi_verify.rc != 0 or rmapi_verify.stdout == ""
+  when: not ansible_check_mode or rmapi_binary_check.stat.exists
 
 - name: Show rmapi version
   ansible.builtin.debug:
     msg: "rmapi installed successfully: {{ rmapi_verify.stdout }}"
+  when: rmapi_verify is not skipped
 
 - name: Display authentication instructions
   ansible.builtin.debug:
