@@ -80,6 +80,62 @@ async function verifyEmittedAssets(page){
     ["/knowledge/postscript.js","javascript"],
     ["/knowledge/static/contentIndex.json","json"],
   ];
+  // Regression: check the URLs actually emitted by Quartz, not only
+  // hardcoded, root-level filenames. Nested pages may use relative paths.
+  function attributes(tag){
+    const result={};
+    for(const match of tag.matchAll(/([:\w-]+)\s*=\s*(["'])(.*?)\2/g)){
+      result[match[1].toLowerCase()]=match[3];
+    }
+    return result;
+  }
+
+  async function verifyEmittedAssets(pagePath){
+    const page=await fetch(origin+pagePath,{headers,redirect:"manual",signal:AbortSignal.timeout(10000)});
+    assert.equal(page.status,200,"Quartz page unavailable");
+    assert((page.headers.get("content-type")||"").includes("text/html"),"Quartz page is not HTML");
+    const html=await page.text();
+    assert(!/Knowledge base not published yet|Knowledge base not built yet/i.test(html),
+      "Quartz still serves its setup placeholder");
+
+    const assets=[];
+    for(const match of html.matchAll(/<(link|script)\b[^>]*>/gi)){
+      const attrs=attributes(match[0]);
+      if(match[1].toLowerCase()==="link"&&/\bstylesheet\b/i.test(attrs.rel||"")&&attrs.href)
+        assets.push({url:attrs.href,kind:"css"});
+      if(match[1].toLowerCase()==="script"&&attrs.src)
+        assets.push({url:attrs.src,kind:"js"});
+    }
+    assert(assets.some(a=>a.kind==="css"),"Quartz HTML has no linked stylesheet");
+    assert(assets.some(a=>a.kind==="js"),"Quartz HTML has no linked script");
+
+    let styles=0,scripts=0;
+    for(const asset of assets){
+      // HTML entities in URLs are uncommon for Quartz but &amp; can occur
+      // in query strings. Decode this standard entity before resolving.
+      const href=asset.url.replace(/&amp;/g,"&");
+      const target=new URL(href,origin+pagePath);
+      if(target.origin!==origin)continue; // Ignore external hosts/CDNs.
+      assert(target.pathname.startsWith("/knowledge/"),
+        "A generated Quartz asset escapes the /knowledge/ prefix");
+      const result=await fetch(target,{headers,redirect:"manual",signal:AbortSignal.timeout(10000)});
+      assert.equal(result.status,200,"An emitted Quartz asset returned non-200");
+      const type=result.headers.get("content-type")||"";
+      assert(type.includes(asset.kind==="css"?"text/css":"javascript"),
+        "An emitted Quartz asset has the wrong content-type");
+      assert((await result.arrayBuffer()).byteLength>0,"An emitted Quartz asset is empty");
+      if(asset.kind==="css")styles++;else scripts++;
+    }
+    assert(styles>0,"No local Quartz stylesheet was successfully loaded");
+    assert(scripts>0,"No local Quartz script was successfully loaded");
+    console.log("PASS: emitted assets for a Quartz page ("+styles+" CSS, "+scripts+" JS)");
+  }
+
+  // The vault index is a nested generated page. Resolve its emitted
+  // relative CSS and JS URLs as a browser would at this exact path.
+  await verifyEmittedAssets("/knowledge/index.html");
+  await verifyEmittedAssets("/knowledge/PhD/index.html");
+
   for(const [path,expectedType] of cases){
     const res=await fetch(origin+path,{headers,signal:AbortSignal.timeout(10000)});
     assert.equal(res.status,200,`${path}: HTTP ${res.status}`);
