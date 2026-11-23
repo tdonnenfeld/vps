@@ -27,7 +27,9 @@
     key_file: "{{ phd_git_key_file }}"
     accept_hostkey: true
   register: phd_git_result
-  notify: Recreate PhD web container
+  notify:
+    - Recreate PhD web container
+    - Recreate PhD Quartz container
 
 - name: Render PhD hub .env
   ansible.builtin.template:
