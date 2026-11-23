@@ -27,12 +27,26 @@
     key_file: "{{ phd_git_key_file }}"
     accept_hostkey: true
   register: phd_git_result
+  notify: Recreate PhD web container
 
 - name: Render PhD hub .env
   ansible.builtin.template:
     src: phd.env.j2
     dest: "{{ phd_hub_dir }}/.env"
     mode: "0600"
+  notify: Recreate PhD web container
+
+- name: Check whether Quartz has generated a homepage
+  ansible.builtin.stat:
+    path: "{{ phd_hub_dir }}/quartz/public/index.html"
+  register: phd_quartz_index
+
+- name: Provide a private setup page until Quartz is built
+  ansible.builtin.template:
+    src: quartz-setup.html.j2
+    dest: "{{ phd_hub_dir }}/quartz/public/index.html"
+    mode: "0644"
+  when: not phd_quartz_index.stat.exists
 
 - name: Copy patched mlflow Dockerfile
   ansible.builtin.copy:

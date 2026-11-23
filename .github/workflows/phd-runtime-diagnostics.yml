@@ -1,0 +1,39 @@
+name: PhD runtime diagnostics
+on:
+  pull_request:
+    paths:
+      - "ansible/roles/web_phd/**"
+      - ".github/workflows/phd-runtime-diagnostics.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Configure SSH key
+        env:
+          PALMA_DEPLOY_KEY: ${{ secrets.PALMA_DEPLOY_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$PALMA_DEPLOY_KEY" > ~/.ssh/palma_ci
+          chmod 600 ~/.ssh/palma_ci
+          ssh-keyscan -H 185.196.20.127 >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Inspect running configuration without revealing secrets
+        shell: bash
+        run: |
+          ssh -o BatchMode=yes -o ConnectTimeout=15 -i ~/.ssh/palma_ci theo@185.196.20.127 'sudo bash -se' <<'REMOTE'
+          cd /opt/phd-hub
+          container="$(docker compose --env-file .env -f infrastructure/compose.yml -f infrastructure/compose.override.yml ps -q phd-web)"
+          test -n "$container"
+          echo "Container running: yes"
+          docker exec "$container" node -e 'console.log("GitHub runtime token configured:",Boolean(process.env.GITHUB_TOKEN?.trim()));console.log("Selected GitHub repos configured:",Boolean(process.env.GITHUB_REPOS?.trim()))'
+          if [ -s /opt/phd-hub/quartz/public/index.html ]; then
+            echo "Quartz homepage present: yes"
+          else
+            echo "Quartz homepage present: no"
+          fi
+          REMOTE
