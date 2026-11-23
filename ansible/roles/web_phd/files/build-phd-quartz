@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HUB_DIR=/opt/phd-hub
+VAULTS_DIR=/opt/services/shared/obsidian/vaults
+SOURCE_DIR="$HUB_DIR/data/quartz-source"
+PUBLIC_DIR="$HUB_DIR/quartz/public"
+
+# Only one build can publish at a time.
+exec 9>"$HUB_DIR/data/quartz-build.lock"
+flock -n 9 || exit 0
+
+test -d "$VAULTS_DIR" || { echo "Missing vault root: $VAULTS_DIR" >&2; exit 1; }
+test -f "$SOURCE_DIR/quartz.config.ts" || { echo "Quartz checkout not prepared" >&2; exit 1; }
+command -v rsync >/dev/null || { echo "rsync is required" >&2; exit 1; }
+
+stage="$(mktemp -d "$HUB_DIR/data/quartz-stage.XXXXXX")"
+render="$(mktemp -d "$HUB_DIR/data/quartz-output.XXXXXX")"
+trap 'rm -rf "$stage" "$render"' EXIT
+mkdir -p "$stage/content"
+
+cat > "$stage/content/index.md" <<'MARKDOWN'
+---
+title: Research Knowledge
+---
+# Research knowledge
+
+These Obsidian vaults are published privately at **phd.les12.fr/knowledge/**.
+
+MARKDOWN
+
+vault_count=0
+while IFS= read -r -d '' vault; do
+  name="$(basename "$vault")"
+  [[ "$name" = .* ]] && continue
+  # Preserve each vault in its own folder. Never follow symlinks outside the vault root.
+  mkdir -p "$stage/content/$name"
+  rsync -r --prune-empty-dirs --no-links \
+    --exclude='.*' --exclude='private/***' --exclude='templates/***' \
+    --include='*/' \
+    --include='*.md' --include='*.MD' \
+    --include='*.png' --include='*.jpg' --include='*.jpeg' \
+    --include='*.gif' --include='*.webp' --include='*.svg' --include='*.pdf' \
+    --exclude='*' "$vault/" "$stage/content/$name/"
+  printf -- '- [%s](%s/)\n' "$name" "$name" >> "$stage/content/index.md"
+  vault_count=$((vault_count + 1))
+done < <(find "$VAULTS_DIR" -mindepth 1 -maxdepth 1 -type d -print0)
+
+if (( vault_count == 0 )); then
+  echo "No vault folders found; leaving published Knowledge unchanged" >&2
+  exit 1
+fi
+if (( $(find "$stage/content" -type f -iname '*.md' | wc -l) <= 1 )); then
+  echo "No notes were selected; leaving published Knowledge unchanged" >&2
+  exit 1
+fi
+echo "Building Quartz from $vault_count vault directories"
+
+# The Quartz source is pinned by Ansible to v4.5.2. The vaults are only staged
+# as an allowlisted copy (no .obsidian, dotfiles, or symlinks).
+docker run --rm \
+  --mount "type=bind,src=$SOURCE_DIR,dst=/quartz" \
+  --mount "type=bind,src=$stage/content,dst=/quartz/content,readonly" \
+  --mount "type=bind,src=$render,dst=/output" \
+  --workdir /quartz \
+  node:22-bookworm-slim sh -euc '
+    if [ ! -d node_modules ]; then npm ci --no-audit --no-fund; fi
+    npx quartz build --directory content --output /output
+  '
+
+test -s "$render/index.html" || { echo "Quartz build generated no index.html" >&2; exit 1; }
+mkdir -p "$PUBLIC_DIR"
+# Update in place: nginx has a bind mount on this directory and must not lose it.
+rsync -a --delete "$render/" "$PUBLIC_DIR/"
+echo "Published Quartz site: $vault_count vaults"
