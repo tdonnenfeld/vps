@@ -10,6 +10,41 @@ docker exec -i "$container" node - <<'NODE'
 const assert = require("node:assert/strict");
 const origin = "http://127.0.0.1:3000";
 const headers = {"Remote-User":process.env.ALLOWED_USER || ""};
+
+function htmlAttributes(tag){
+  const attrs={};
+  for(const match of tag.matchAll(/([:\\w-]+)\\s*=\\s*(["'])(.*?)\\2/g))attrs[match[1].toLowerCase()]=match[3];
+  return attrs;
+}
+async function verifyEmittedAssets(page){
+  const response=await fetch(origin+page,{headers,redirect:"manual",signal:AbortSignal.timeout(10000)});
+  assert.equal(response.status,200,"Quartz page must return HTTP 200");
+  assert((response.headers.get("content-type")||"").includes("text/html"),"Quartz page must be HTML");
+  const html=await response.text();
+  assert(!/Knowledge base not (published|built) yet/i.test(html),"Quartz setup placeholder is not a completed build");
+  const assets=[];
+  for(const match of html.matchAll(/<(link|script)\\b[^>]*>/gi)){
+    const attrs=htmlAttributes(match[0]);
+    const tag=match[1].toLowerCase();
+    if(tag==="link"&&/\\bstylesheet\\b/i.test(attrs.rel||"")&&attrs.href)assets.push({url:attrs.href,type:"text/css"});
+    if(tag==="script"&&attrs.src)assets.push({url:attrs.src,type:"javascript"});
+  }
+  let css=0,js=0;
+  for(const asset of assets){
+    const url=new URL(asset.url,origin+page);
+    if(url.origin!==origin)continue;
+    assert(url.pathname.startsWith("/knowledge/"),"Quartz asset URL escapes /knowledge prefix");
+    const res=await fetch(url,{headers,redirect:"manual",signal:AbortSignal.timeout(10000)});
+    assert.equal(res.status,200,"Quartz-emitted asset must load without redirects");
+    assert((res.headers.get("content-type")||"").includes(asset.type),"Quartz-emitted asset has wrong MIME type");
+    assert((await res.text()).trim().length>0,"Quartz-emitted asset is empty");
+    if(asset.type==="text/css")css++;else js++;
+  }
+  assert(css>0,"Quartz HTML must reference a working local stylesheet");
+  assert(js>0,"Quartz HTML must reference a working local script");
+  console.log("PASS: Quartz HTML references working CSS and JS through the /knowledge proxy");
+}
+
 (async()=>{
   // Docker recreation completes before Next.js is always accepting traffic.
   let ready=false;
@@ -55,6 +90,18 @@ const headers = {"Remote-User":process.env.ALLOWED_USER || ""};
       assert(data && typeof data==="object","Quartz content index must be JSON");
     }
     console.log(`PASS: ${path} HTTP 200 (${type})`);
+  }
+  await verifyEmittedAssets("/knowledge/index.html");
+  const indexResponse=await fetch(origin+"/knowledge/static/contentIndex.json",{headers,signal:AbortSignal.timeout(10000)});
+  assert.equal(indexResponse.status,200,"Quartz content index must load");
+  const index=await indexResponse.json();
+  const nested=Object.keys(index).find(slug=>slug.includes("/")&&!slug.endsWith("/index")&&!slug.startsWith("tags/"));
+  if(nested){
+    const nestedPath="/knowledge/"+nested.split("/").map(encodeURIComponent).join("/")+".html";
+    await verifyEmittedAssets(nestedPath);
+    console.log("PASS: Nested Quartz note uses working asset URLs");
+  }else{
+    console.log("SKIP: No nested Quartz note in content index");
   }
 })().catch(e=>{console.error("FAIL: "+e.message);process.exitCode=1;});
 NODE
