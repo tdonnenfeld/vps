@@ -36,4 +36,17 @@ jobs:
           else
             echo "Quartz homepage present: no"
           fi
+          docker exec -i "$container" node - <<'NODE'
+          const paths=["/knowledge","/knowledge/","/knowledge/PhD","/knowledge/PhD/","/knowledge/PhD/index.html","/knowledge/index.css"];
+          (async()=>{
+            for(const host of ["http://127.0.0.1:3000","http://phd-quartz"]){
+              for(const path of paths){
+                try {
+                  const r=await fetch(host+path,{redirect:"manual",headers:{"Remote-User":process.env.ALLOWED_USER||""},signal:AbortSignal.timeout(8000)});
+                  console.log("ROUTE",host.replace("127.0.0.1:3000","nextjs"),path,"status",r.status,"location",r.headers.get("location")||"-","type",r.headers.get("content-type")||"-");
+                }catch(e){console.log("ROUTE",host.replace("127.0.0.1:3000","nextjs"),path,"error",e.name);}
+              }
+            }
+          })();
+          NODE
           REMOTE
