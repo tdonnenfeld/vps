@@ -1,0 +1,6 @@
+---
+- name: Recreate PhD web container
+  ansible.builtin.command:
+    cmd: docker compose --env-file .env -f infrastructure/compose.yml -f infrastructure/compose.override.yml up -d --no-deps --force-recreate phd-web
+    chdir: "{{ phd_hub_dir }}"
+  changed_when: true
