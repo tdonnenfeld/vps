@@ -37,7 +37,7 @@ jobs:
             echo "Quartz homepage present: no"
           fi
           docker exec -i "$container" node - <<'NODE'
-          const paths=["/knowledge","/knowledge/","/knowledge/PhD","/knowledge/PhD/","/knowledge/PhD/index.html","/knowledge/index.css"];
+          const paths=["/knowledge","/knowledge/","/knowledge/PhD","/knowledge/PhD/","/knowledge/PhD/index.html","/knowledge/index.css","/knowledge/PhD/index.css"];
           (async()=>{
             for(const host of ["http://127.0.0.1:3000","http://phd-quartz"]){
               for(const path of paths){
