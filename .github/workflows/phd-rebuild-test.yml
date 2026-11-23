@@ -1,0 +1,50 @@
+name: PhD web Docker rebuild test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ansible/roles/web_phd/**
+      - .github/workflows/phd-rebuild-test.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phd-web-rebuild-test
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Configure VPS SSH key
+        shell: bash
+        env:
+          PALMA_DEPLOY_KEY: ${{ secrets.PALMA_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$PALMA_DEPLOY_KEY"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$PALMA_DEPLOY_KEY" > ~/.ssh/palma_ci
+          chmod 600 ~/.ssh/palma_ci
+          for i in 1 2 3 4 5; do
+            ssh-keyscan -H 185.196.20.127 >> ~/.ssh/known_hosts 2>/dev/null && break
+            sleep 5
+          done
+
+      - name: Rebuild phd-web image without restarting production
+        shell: bash
+        run: |
+          ssh -o BatchMode=yes -o ConnectTimeout=15 -i ~/.ssh/palma_ci theo@185.196.20.127 'sudo bash -se' <<'REMOTE'
+          cd /opt/phd-hub
+          compose=(docker compose --env-file .env -f infrastructure/compose.yml -f infrastructure/compose.override.yml)
+          before="$("${compose[@]}" ps -q phd-web)"
+          test -n "$before"
+          echo "Rebuilding only the PhD web Docker image (current VPS checkout)"
+          "${compose[@]}" build phd-web
+          after="$("${compose[@]}" ps -q phd-web)"
+          test "$before" = "$after" || { echo "::error::Live phd-web container changed during build"; exit 1; }
+          echo "PASS: phd-web image rebuilt; running container unchanged"
+          REMOTE
