@@ -1,0 +1,9 @@
+[Unit]
+Description=Build private PhD Knowledge from synced Obsidian vaults
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/build-phd-quartz
+TimeoutStartSec=1800
