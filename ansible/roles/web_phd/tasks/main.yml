@@ -95,13 +95,12 @@
     repo: https://github.com/jackyzha0/quartz.git
     dest: "{{ phd_hub_dir }}/data/quartz-source"
     version: v4.5.2
-    force: true
   when: not ansible_check_mode
 
 - name: Configure private Quartz site and Catppuccin palette
   ansible.builtin.template:
     src: quartz.config.ts.j2
-    dest: "{{ phd_hub_dir }}/data/quartz-source/quartz.config.ts"
+    dest: "{{ phd_hub_dir }}/data/quartz.config.ts"
     mode: "0644"
   when: not ansible_check_mode
 
