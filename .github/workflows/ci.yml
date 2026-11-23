@@ -10,6 +10,48 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine changed Ansible roles
+        id: changed
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          files="$(git diff --name-only "$BASE_SHA" HEAD)"
+          echo "Changed files:"
+          printf '%s\n' "$files"
+
+          # Shared playbooks, inventory and variables may affect every role.
+          if grep -qE '^ansible/(group_vars/|inventory|site\.yml|init\.yml|[^/]+$)' <<< "$files"; then
+            echo 'scope=all' >> "$GITHUB_OUTPUT"
+            echo 'tags=' >> "$GITHUB_OUTPUT"
+          else
+            tags=""
+            while IFS= read -r path; do
+              if [[ "$path" =~ ^ansible/roles/([^/]+)/ ]]; then
+                role="${BASH_REMATCH[1]}"
+                case ",$tags," in
+                  *",$role,"*) ;;
+                  *) tags="${tags:+$tags,}$role" ;;
+                esac
+              elif [[ "$path" == ansible/* ]]; then
+                # Unknown Ansible paths must not silently skip validation.
+                echo 'scope=all' >> "$GITHUB_OUTPUT"
+                echo 'tags=' >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            done <<< "$files"
+            if [[ -n "$tags" ]]; then
+              echo 'scope=roles' >> "$GITHUB_OUTPUT"
+              echo "tags=$tags" >> "$GITHUB_OUTPUT"
+            else
+              echo 'scope=none' >> "$GITHUB_OUTPUT"
+              echo 'tags=' >> "$GITHUB_OUTPUT"
+            fi
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -23,6 +65,7 @@ jobs:
           ansible-galaxy collection install community.general
 
       - name: Install secrets (vault password + deploy key)
+        if: steps.changed.outputs.scope != 'none'
         env:
           ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
           PALMA_DEPLOY_KEY: ${{ secrets.PALMA_DEPLOY_KEY }}
@@ -37,14 +80,33 @@ jobs:
           done
 
       - name: Syntax check
+        if: steps.changed.outputs.scope != 'none'
         run: |
           ansible-playbook -i ansible/inventory.ini ansible/site.yml \
             --syntax-check \
             --vault-password-file vault.pass
 
-      - name: Dry run against palma (check mode)
+      - name: Dry run changed roles against palma
+        if: steps.changed.outputs.scope != 'none'
+        shell: bash
+        env:
+          SCOPE: ${{ steps.changed.outputs.scope }}
+          TAGS: ${{ steps.changed.outputs.tags }}
         run: |
+          set -euo pipefail
+          args=()
+          if [[ "$SCOPE" == roles ]]; then
+            args+=(--tags "$TAGS")
+            echo "Dry-running changed roles: $TAGS"
+          else
+            echo "Dry-running full Ansible playbook (shared changes)"
+          fi
           ansible-playbook -i ansible/inventory.ini ansible/site.yml \
             --check --diff \
             --vault-password-file vault.pass \
-            -e "vps_ssh_private_key_file=$HOME/.ssh/palma_ci"
+            -e "vps_ssh_private_key_file=$HOME/.ssh/palma_ci" \
+            "${args[@]}"
+
+      - name: Report skipped Ansible checks
+        if: steps.changed.outputs.scope == 'none'
+        run: echo "No Ansible files changed; syntax check and remote dry run not needed."
