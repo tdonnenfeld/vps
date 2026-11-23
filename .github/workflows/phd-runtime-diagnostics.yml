@@ -36,4 +36,43 @@ jobs:
           else
             echo "Quartz homepage present: no"
           fi
+          echo "=== Quartz source and output ==="
+          vault_root=/opt/services/shared/obsidian/vaults
+          public=/opt/phd-hub/quartz/public
+          if [ -d "$vault_root" ]; then
+            echo "Vault directories: $(find "$vault_root" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | wc -l)"
+            echo "Source Markdown files: $(find "$vault_root" -type f \( -iname '*.md' \) | wc -l)"
+          else
+            echo "Vault root missing"
+          fi
+          if [ -s "$public/index.html" ]; then
+            echo "Published homepage: present"
+            if grep -qi 'Knowledge base not published yet\|Knowledge base not built yet' "$public/index.html"; then
+              echo "Published homepage: SETUP PLACEHOLDER, not a completed Quartz build"
+            else
+              echo "Published homepage: not the setup placeholder"
+            fi
+          else
+            echo "Published homepage: missing"
+          fi
+          echo "Published HTML pages: $(find "$public" -type f -name '*.html' 2>/dev/null | wc -l)"
+          echo "Published CSS files: $(find "$public" -type f -name '*.css' 2>/dev/null | wc -l)"
+          echo "Published JS files: $(find "$public" -type f -name '*.js' 2>/dev/null | wc -l)"
+
+          echo "=== Quartz build service ==="
+          echo "Build service state: $(systemctl show phd-quartz-build.service --property=ActiveState --value)"
+          echo "Build service result: $(systemctl show phd-quartz-build.service --property=Result --value)"
+          echo "Build service exit status: $(systemctl show phd-quartz-build.service --property=ExecMainStatus --value)"
+          echo "Build timer state: $(systemctl show phd-quartz-build.timer --property=ActiveState --value)"
+          echo "Build timer enabled: $(systemctl is-enabled phd-quartz-build.timer || true)"
+
+          echo "=== Private HTTP routing ==="
+          docker exec -i "$container" node - <<'NODE'
+          const routes = ["/knowledge","/knowledge/","/knowledge/index.html"];
+          (async()=>{for(const route of routes){
+            try {const r=await fetch("http://127.0.0.1:3000"+route,{headers:{"Remote-User":process.env.ALLOWED_USER||""},redirect:"manual",signal:AbortSignal.timeout(10000)});
+              console.log("App route",route,": HTTP",r.status,"type:",r.headers.get("content-type"),"location:",r.headers.get("location"));
+            } catch(e) {console.log("App route",route,": failed:",e.name);}
+          }})().catch(()=>process.exitCode=1);
+          NODE
           REMOTE
