@@ -1,29 +1,8 @@
-# Compose override applied by the web_phd Ansible role.
-# The upstream compose.yml + mlflow.Dockerfile have two MLflow 3.4.0 bugs:
-#   1. `--allowed-hosts` was removed in MLflow 3.x.
-#   2. mlflow 3.4.0 imports `FallbackAsyncAdaptedQueuePool`, removed in SQLAlchemy 2.1.
-# We patch both here instead of modifying the cloned repository.
-# Expose only the PhD Obsidian vault to the web app as read-only Markdown.
-# No mount is writable and other vaults remain inaccessible.
+# PhD Research Hub: only the approved PhD Obsidian vault is mounted read-only.
+# MLflow is no longer part of the app; existing artifacts/databases are preserved.
 services:
   phd-web:
     environment:
       OBSIDIAN_DAILY_DIR: /mnt/obsidian-phd
     volumes:
       - /opt/services/shared/obsidian/vaults/PhD:/mnt/obsidian-phd:ro
-  phd-mlflow:
-    build:
-      context: ..
-      dockerfile: infrastructure/mlflow.patched.Dockerfile
-    command:
-      - mlflow
-      - server
-      - --host
-      - 0.0.0.0
-      - --port
-      - "5000"
-      - --backend-store-uri
-      - ${MLFLOW_DATABASE_URL}
-      - --artifacts-destination
-      - /artifacts
-      - --serve-artifacts
