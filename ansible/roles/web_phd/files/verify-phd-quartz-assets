@@ -33,10 +33,9 @@ const headers = {"Remote-User":process.env.ALLOWED_USER || ""};
   console.log("PASS: /knowledge/PhD/ serves the vault folder without redirects");
 
   const noSlash=await fetch(origin+"/knowledge/PhD",{headers,redirect:"manual"});
-  if(noSlash.status>=300&&noSlash.status<400){
-    assert.equal(noSlash.headers.get("location"),"/knowledge/PhD/","Directory redirect must remain relative to public domain");
-  }else{assert.equal(noSlash.status,200,"Folder URL must stay on the public host");}
-  console.log("PASS: /knowledge/PhD cannot redirect to internal phd-quartz hostname");
+  assert.equal(noSlash.status,200,"A folder URL without its slash must serve index.html without a 301 loop");
+  assert.equal(noSlash.headers.get("location"),null,"Do not redirect to internal phd-quartz or loop");
+  console.log("PASS: /knowledge/PhD resolves without a redirect loop or internal hostname");
 
   const cases = [
     ["/knowledge/index.html","text/html"],
