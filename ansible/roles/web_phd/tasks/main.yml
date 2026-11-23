@@ -81,3 +81,54 @@
     name: web-phd
     state: started
     enabled: true
+
+
+# Quartz is built from all approved Syncthing vault folders into a staging copy.
+# The source vaults remain untouched and are never mounted into the web container.
+- name: Ensure rsync is installed for safe Quartz staging
+  ansible.builtin.apt:
+    name: rsync
+    state: present
+
+- name: Fetch pinned Quartz v4 source
+  ansible.builtin.git:
+    repo: https://github.com/jackyzha0/quartz.git
+    dest: "{{ phd_hub_dir }}/data/quartz-source"
+    version: v4.5.2
+  when: not ansible_check_mode
+
+- name: Configure private Quartz site and Catppuccin palette
+  ansible.builtin.template:
+    src: quartz.config.ts.j2
+    dest: "{{ phd_hub_dir }}/data/quartz.config.ts"
+    mode: "0644"
+  when: not ansible_check_mode
+
+- name: Install guarded Quartz build script
+  ansible.builtin.copy:
+    src: build-phd-quartz
+    dest: /usr/local/sbin/build-phd-quartz
+    mode: "0755"
+
+- name: Install Quartz build systemd service
+  ansible.builtin.template:
+    src: phd-quartz-build.service.j2
+    dest: /etc/systemd/system/phd-quartz-build.service
+    mode: "0644"
+
+- name: Install Quartz build systemd timer
+  ansible.builtin.template:
+    src: phd-quartz-build.timer.j2
+    dest: /etc/systemd/system/phd-quartz-build.timer
+    mode: "0644"
+
+- name: Reload systemd for Quartz build units
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable periodic private Quartz builds
+  ansible.builtin.systemd:
+    name: phd-quartz-build.timer
+    enabled: true
+    state: started
+  when: not ansible_check_mode

@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh private PhD Knowledge every 3 hours
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=3h
+Persistent=true
+Unit=phd-quartz-build.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,35 @@
+name: Quartz isolated build test
+
+on:
+  pull_request:
+    paths:
+      - "ansible/roles/web_phd/files/build-phd-quartz"
+      - "ansible/roles/web_phd/templates/quartz.config.ts.j2"
+      - ".github/workflows/quartz-build-test.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  quartz-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate script syntax
+        run: bash -n ansible/roles/web_phd/files/build-phd-quartz
+      - name: Prepare fake vault and pinned Quartz source
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq rsync
+          sudo mkdir -p /opt/phd-hub/data /opt/phd-hub/quartz/public
+          sudo mkdir -p /opt/services/shared/obsidian/vaults/TestVault
+          echo '# An isolated Quartz test note' | sudo tee /opt/services/shared/obsidian/vaults/TestVault/Example.md >/dev/null
+          sudo git clone --quiet --depth 1 --branch v4.5.2 https://github.com/jackyzha0/quartz.git /opt/phd-hub/data/quartz-source
+          sudo cp ansible/roles/web_phd/templates/quartz.config.ts.j2 /opt/phd-hub/data/quartz.config.ts
+      - name: Build and verify generated site
+        run: |
+          sudo bash ansible/roles/web_phd/files/build-phd-quartz
+          test -s /opt/phd-hub/quartz/public/index.html
+          test -s /opt/phd-hub/quartz/public/TestVault/Example.html
+          echo "Quartz generated pages successfully from isolated test vault"
