@@ -45,4 +45,13 @@ jobs:
             echo "PhD vault accessible: no"
             exit 1
           fi
+          root="/opt/services/shared/obsidian/vaults"
+          echo "=== Dated-note filename patterns by Obsidian vault (counts only) ==="
+          for vault in "$root"/*/; do
+            [ -d "$vault" ] || continue
+            files="$(find "$vault" -type f -iname '*.md' -printf '%f\\n')"
+            exact="$(printf '%s\\n' "$files" | grep -Ec '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\.md || true)"
+            dated="$(printf '%s\\n' "$files" | grep -Ec '[0-9]{4}[-_.][0-9]{2}[-_.][0-9]{2}|[0-9]{2}[-_.][0-9]{2}[-_.][0-9]{4}|[0-9]{8}' || true)"
+            echo "Vault $(basename "$vault"): exact_iso=$exact any_date_pattern=$dated"
+          done
           REMOTE
