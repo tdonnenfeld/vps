@@ -3,7 +3,14 @@
 #   1. `--allowed-hosts` was removed in MLflow 3.x.
 #   2. mlflow 3.4.0 imports `FallbackAsyncAdaptedQueuePool`, removed in SQLAlchemy 2.1.
 # We patch both here instead of modifying the cloned repository.
+# Expose only the PhD Obsidian vault to the web app as read-only Markdown.
+# No mount is writable and other vaults remain inaccessible.
 services:
+  phd-web:
+    environment:
+      OBSIDIAN_DAILY_DIR: /mnt/obsidian-phd
+    volumes:
+      - /opt/services/shared/obsidian/vaults/PhD:/mnt/obsidian-phd:ro
   phd-mlflow:
     build:
       context: ..
