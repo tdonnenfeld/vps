@@ -66,11 +66,11 @@ docker run --rm \
   --workdir /quartz \
   node:22-bookworm-slim sh -euc '
     if [ ! -d node_modules ]; then npm ci --no-audit --no-fund; fi
-    npx quartz build --directory content --output /output
+    npx quartz build --directory content --output /output/site
   '
 
-test -s "$render/index.html" || { echo "Quartz build generated no index.html" >&2; exit 1; }
+test -s "$render/site/index.html" || { echo "Quartz build generated no index.html" >&2; exit 1; }
 mkdir -p "$PUBLIC_DIR"
 # Update in place: nginx has a bind mount on this directory and must not lose it.
-rsync -a --delete "$render/" "$PUBLIC_DIR/"
+rsync -a --delete "$render/site/" "$PUBLIC_DIR/"
 echo "Published Quartz site: $vault_count vaults"
