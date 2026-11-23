@@ -67,7 +67,7 @@ jobs:
           echo "Build timer enabled: $(systemctl is-enabled phd-quartz-build.timer || true)"
 
           echo "=== Private HTTP routing ==="
-          docker exec "$container" node - <<'NODE'
+          docker exec -i "$container" node - <<'NODE'
           const routes = ["/knowledge/","/knowledge/index.html"];
           (async()=>{for(const route of routes){
             try {const r=await fetch("http://127.0.0.1:3000"+route,{headers:{"Remote-User":process.env.ALLOWED_USER||""},redirect:"manual",signal:AbortSignal.timeout(10000)});
