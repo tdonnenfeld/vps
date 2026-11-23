@@ -4,35 +4,89 @@ cd /opt/phd-hub
 container="$(docker compose --env-file .env -f infrastructure/compose.yml -f infrastructure/compose.override.yml ps -q phd-web)"
 test -n "$container" || { echo "phd-web is not running" >&2; exit 1; }
 
-# Check the actual Next.js -> nginx/Quartz proxy, without sending private
-# documents or application credentials to CI logs.
+# Exercise the Next.js -> nginx/Quartz proxy with the production authorization
+# header, without printing note contents, private URLs, or credentials.
 docker exec -i "$container" node - <<'NODE'
 const assert = require("node:assert/strict");
 const origin = "http://127.0.0.1:3000";
 const headers = {"Remote-User":process.env.ALLOWED_USER || ""};
-(async()=>{
-  const entry = await fetch(origin+"/knowledge",{headers,redirect:"manual"});
-  assert.equal(entry.status,307,"/knowledge must redirect to the folder-aware URL");
-  assert.equal(entry.headers.get("location"),"/knowledge/index.html");
-  console.log("PASS: Knowledge entry redirects to /knowledge/index.html");
 
-  const cases = [
-    ["/knowledge/index.html","text/html"],
-    ["/knowledge/index.css","text/css"],
-    ["/knowledge/prescript.js","javascript"],
-    ["/knowledge/postscript.js","javascript"],
-    ["/knowledge/static/contentIndex.json","json"],
-  ];
-  for(const [path,expectedType] of cases){
-    const res=await fetch(origin+path,{headers,signal:AbortSignal.timeout(10000)});
-    assert.equal(res.status,200,`${path}: HTTP ${res.status}`);
-    const type=res.headers.get("content-type")||"";
-    assert(type.includes(expectedType),`${path}: unexpected content type ${type}`);
-    if(expectedType==="json"){
-      const data=await res.json();
-      assert(data && typeof data==="object","Quartz content index must be JSON");
-    }
-    console.log(`PASS: ${path} HTTP 200 (${type})`);
+async function get(path, expectedType) {
+  const res = await fetch(origin + path, {headers, signal: AbortSignal.timeout(10000)});
+  assert.equal(res.status, 200, `Knowledge asset returned HTTP ${res.status}`);
+  const type = res.headers.get("content-type") || "";
+  assert(type.includes(expectedType), `Knowledge asset has unexpected content type: ${type}`);
+  return res;
+}
+
+function attributes(tag) {
+  const attrs = {};
+  for (const match of tag.matchAll(/([:\w-]+)\s*=\s*(["'])(.*?)\2/g)) {
+    attrs[match[1].toLowerCase()] = match[3];
   }
-})().catch(e=>{console.error("FAIL: "+e.message);process.exitCode=1;});
+  return attrs;
+}
+
+async function checkPage(path) {
+  const html = await (await get(path, "text/html")).text();
+  assert(/<meta\s+name=["']generator["']\s+content=["']Quartz["']/i.test(html),
+    "Expected a generated Quartz page, not the setup placeholder");
+
+  const styles = [];
+  const scripts = [];
+  for (const match of html.matchAll(/<(link|script)\b[^>]*>/gi)) {
+    const attrs = attributes(match[0]);
+    if (match[1].toLowerCase() === "link" && /\bstylesheet\b/i.test(attrs.rel || "")) {
+      styles.push(attrs.href);
+    }
+    if (match[1].toLowerCase() === "script" && attrs.src) scripts.push(attrs.src);
+  }
+  assert(styles.some(url => url && new URL(url, origin + path).pathname.endsWith("/index.css")),
+    "Quartz HTML does not reference its generated index.css");
+
+  let cssCount = 0;
+  let scriptCount = 0;
+  for (const [urls, kind, expectedType] of [[styles, "css", "text/css"], [scripts, "js", "javascript"]]) {
+    for (const url of urls) {
+      if (!url) continue;
+      const resolved = new URL(url, origin + path);
+      if (resolved.origin !== origin) continue; // External fonts/CDNs are outside this proxy.
+      assert(resolved.pathname.startsWith("/knowledge/"),
+        `Quartz ${kind} URL escapes the /knowledge/ prefix`);
+      const res = await get(resolved.pathname + resolved.search, expectedType);
+      const body = await res.text();
+      assert(body.trim().length > 0, `Quartz ${kind} response is empty`);
+      if (kind === "css") cssCount++;
+      else scriptCount++;
+    }
+  }
+  assert(cssCount > 0, "No same-origin Quartz stylesheet was fetched");
+  assert(scriptCount > 0, "No same-origin Quartz script was fetched");
+  console.log(`PASS: Quartz page has ${cssCount} working local stylesheets and ${scriptCount} scripts`);
+}
+
+(async () => {
+  const entry = await fetch(origin + "/knowledge", {headers, redirect: "manual"});
+  assert.equal(entry.status, 307, "/knowledge must redirect to the folder-aware URL");
+  assert.equal(entry.headers.get("location"), "/knowledge/index.html");
+  console.log("PASS: Knowledge entry redirects correctly");
+
+  await checkPage("/knowledge/index.html");
+
+  const index = await (await get("/knowledge/static/contentIndex.json", "json")).json();
+  assert(index && typeof index === "object", "Quartz content index must be JSON");
+
+  // A nested note must resolve assets relative to its own path, not the host root.
+  const nested = Object.keys(index).find(slug => slug.includes("/") && !slug.endsWith("/index"));
+  if (nested) {
+    const path = "/knowledge/" + nested.split("/").map(encodeURIComponent).join("/") + ".html";
+    await checkPage(path);
+    console.log("PASS: Nested Quartz note assets resolve correctly");
+  } else {
+    console.log("SKIP: No nested note in Quartz content index");
+  }
+})().catch(error => {
+  console.error("FAIL: " + error.message);
+  process.exitCode = 1;
+});
 NODE
