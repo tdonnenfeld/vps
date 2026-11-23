@@ -60,6 +60,7 @@ echo "Building Quartz from $vault_count vault directories"
 # as an allowlisted copy (no .obsidian, dotfiles, or symlinks).
 docker run --rm \
   --mount "type=bind,src=$SOURCE_DIR,dst=/quartz" \
+  --mount "type=bind,src=$HUB_DIR/data/quartz.config.ts,dst=/quartz/quartz.config.ts,readonly" \
   --mount "type=bind,src=$stage/content,dst=/quartz/content,readonly" \
   --mount "type=bind,src=$render,dst=/output" \
   --workdir /quartz \
