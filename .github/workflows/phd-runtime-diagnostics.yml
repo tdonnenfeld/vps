@@ -36,8 +36,14 @@ jobs:
           else
             echo "Quartz homepage present: no"
           fi
+          quartz="$(docker compose --env-file .env -f infrastructure/compose.yml -f infrastructure/compose.override.yml ps -q phd-quartz)"
+          test -n "$quartz"
+          echo "nginx config active:"
+          docker exec "$quartz" sh -c "grep -E 'absolute_redirect|try_files|location /knowledge' /etc/nginx/conf.d/default.conf" || true
+          echo "PhD index exists: $(test -f /opt/phd-hub/quartz/public/PhD/index.html && echo yes || echo no)"
+          echo "Papers index exists: $(test -f /opt/phd-hub/quartz/public/Papers/index.html && echo yes || echo no)"
           docker exec -i "$container" node - <<'NODE'
-          const paths=["/knowledge","/knowledge/","/knowledge/PhD","/knowledge/PhD/","/knowledge/PhD/index.html","/knowledge/index.css","/knowledge/PhD/index.css"];
+          const paths=["/knowledge","/knowledge/","/knowledge/PhD","/knowledge/PhD/","/knowledge/PhD/index.html","/knowledge/index.css","/knowledge/PhD/index.css","/knowledge/Papers","/knowledge/Papers/","/knowledge/Papers/index.html"];
           (async()=>{
             for(const host of ["http://127.0.0.1:3000","http://phd-quartz"]){
               for(const path of paths){
