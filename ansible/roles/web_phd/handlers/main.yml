@@ -5,3 +5,10 @@
     chdir: "{{ phd_hub_dir }}"
   changed_when: true
   when: not ansible_check_mode
+
+- name: Recreate PhD Quartz container
+  ansible.builtin.command:
+    cmd: docker compose --env-file .env -f infrastructure/compose.yml -f infrastructure/compose.override.yml up -d --no-deps --force-recreate phd-quartz
+    chdir: "{{ phd_hub_dir }}"
+  changed_when: true
+  when: not ansible_check_mode
