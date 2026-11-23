@@ -36,4 +36,13 @@ jobs:
           else
             echo "Quartz homepage present: no"
           fi
+          vault="/opt/services/shared/obsidian/vaults/PhD"
+          if [ -d "$vault" ]; then
+            echo "PhD vault accessible: yes"
+            echo "Markdown files in PhD vault: $(find "$vault" -type f -iname '*.md' | wc -l)"
+            echo "Daily notes named YYYY-MM-DD.md: $(find "$vault" -type f -regextype posix-extended -regex '.*/[0-9]{4}-[0-9]{2}-[0-9]{2}\\.[mM][dD]' | wc -l)"
+          else
+            echo "PhD vault accessible: no"
+            exit 1
+          fi
           REMOTE
