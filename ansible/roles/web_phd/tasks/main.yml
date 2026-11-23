@@ -132,3 +132,4 @@
     name: phd-quartz-build.timer
     enabled: true
     state: started
+  when: not ansible_check_mode
