@@ -116,3 +116,16 @@ Then run:
 ansible-playbook -i ansible/inventory.ini ansible/site.yml \
   --tags "{{ selected_tags }}" --ask-vault-pass
 ```
+
+
+## Manually redeploy web-phd from GitHub Actions
+
+To publish the **latest merged** `tdonnenfeld/web-phd/main` code without touching other Ansible roles:
+
+1. Open [VPS Actions — Redeploy web-phd](https://github.com/tdonnenfeld/vps/actions/workflows/redeploy-web-phd.yml).
+2. Click **Run workflow**, select the VPS **main** branch and click **Run workflow** again.
+3. Follow the job log. The `web_phd` Ansible role pulls the application, rebuilds its Docker image, recreates `phd-web` (and `phd-quartz` when needed), and verifies private Quartz asset routes.
+
+This workflow runs **only on manual dispatch**, and only accepts `vps/main`. It shares the `deploy-production` lock with the automatic VPS deployment, uses the same `production` environment and existing `ANSIBLE_VAULT_PASSWORD` / `PALMA_DEPLOY_KEY` secrets, and does not require an empty VPS commit. If the production environment requires approval, approve the run in GitHub Actions.
+
+**Before deploying changes with database migrations**, take a verified backup of `phd_hub`. Only merged changes from `web-phd/main` will be deployed; an open PR is not included. This command may briefly interrupt `phd-web` while its container is replaced. Do not use it to test unmerged application branches.
