@@ -68,10 +68,10 @@ jobs:
 
           echo "=== Private HTTP routing ==="
           docker exec -i "$container" node - <<'NODE'
-          const routes = ["/knowledge/","/knowledge/index.html"];
+          const routes = ["/knowledge","/knowledge/","/knowledge/index.html"];
           (async()=>{for(const route of routes){
             try {const r=await fetch("http://127.0.0.1:3000"+route,{headers:{"Remote-User":process.env.ALLOWED_USER||""},redirect:"manual",signal:AbortSignal.timeout(10000)});
-              console.log("App route",route,": HTTP",r.status,"type:",r.headers.get("content-type"));
+              console.log("App route",route,": HTTP",r.status,"type:",r.headers.get("content-type"),"location:",r.headers.get("location"));
             } catch(e) {console.log("App route",route,": failed:",e.name);}
           }})().catch(()=>process.exitCode=1);
           NODE
