@@ -18,6 +18,52 @@
     - "{{ phd_hub_dir }}"
     - "{{ phd_hub_dir }}/quartz/public"
 
+- name: Create PhD experiment storage group
+  ansible.builtin.group:
+    name: phd-data
+    system: true
+
+- name: Create dedicated PhD experiment account
+  ansible.builtin.user:
+    name: phd-runner
+    group: phd-data
+    system: true
+    create_home: true
+    home: /var/lib/phd-runner
+    shell: /bin/bash
+    password_lock: true
+  when: not ansible_check_mode
+
+- name: Create private PhD data root
+  ansible.builtin.file:
+    path: /opt/services/phd-data
+    state: directory
+    owner: root
+    group: phd-data
+    mode: "0750"
+  when: not ansible_check_mode
+
+- name: Create dataset storage
+  ansible.builtin.file:
+    path: /opt/services/phd-data/datasets
+    state: directory
+    owner: "{{ admin_user }}"
+    group: phd-data
+    mode: "2750"
+  when: not ansible_check_mode
+
+- name: Create experiment output and workspace directories
+  ansible.builtin.file:
+    path: "/opt/services/phd-data/{{ item }}"
+    state: directory
+    owner: phd-runner
+    group: phd-data
+    mode: "2750"
+  loop:
+    - results
+    - workspaces
+  when: not ansible_check_mode
+
 - name: Clone or update web-phd repository
   ansible.builtin.git:
     repo: "{{ phd_git_repo }}"
