@@ -1,0 +1,31 @@
+[Unit]
+Description=Private PhD GitHub Actions runner
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/var/lib/phd-runner/actions-runner/.runner
+
+[Service]
+User=phd-runner
+Group=phd-data
+WorkingDirectory=/var/lib/phd-runner/actions-runner
+ExecStart=/var/lib/phd-runner/actions-runner/runsvc.sh
+Restart=on-failure
+RestartSec=10
+UMask=0027
+CPUQuota=400%
+MemoryMax=5G
+MemorySwapMax=0
+TasksMax=512
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/phd-runner /opt/services/phd-data/results /opt/services/phd-data/workspaces
+ReadOnlyPaths=/opt/services/phd-data/datasets
+InaccessiblePaths=-/run/docker.sock -/var/run/docker.sock -/opt/phd-hub
+
+[Install]
+WantedBy=multi-user.target
