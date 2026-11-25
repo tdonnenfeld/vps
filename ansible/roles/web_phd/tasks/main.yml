@@ -73,6 +73,22 @@
     mode: "0750"
   when: not ansible_check_mode
 
+- name: Check for installed GitHub runner service entry point
+  ansible.builtin.stat:
+    path: /var/lib/phd-runner/actions-runner/bin/runsvc.sh
+  register: phd_runner_entrypoint
+
+- name: Prepare GitHub runner service entry point
+  ansible.builtin.copy:
+    src: /var/lib/phd-runner/actions-runner/bin/runsvc.sh
+    dest: /var/lib/phd-runner/actions-runner/runsvc.sh
+    remote_src: true
+    owner: phd-runner
+    group: phd-data
+    mode: "0750"
+    force: false
+  when: phd_runner_entrypoint.stat.exists and not ansible_check_mode
+
 - name: Install private PhD runner systemd unit
   ansible.builtin.copy:
     src: phd-runner.service
