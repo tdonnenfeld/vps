@@ -5,7 +5,9 @@ services:
     environment:
       OBSIDIAN_DAILY_DIR: /mnt/obsidian-phd
       PHD_DATASETS_DIR: /mnt/phd-datasets
+      PHD_RESULTS_DIR: /mnt/phd-results
     volumes:
       - /opt/services/shared/obsidian/vaults/PhD:/mnt/obsidian-phd:ro
 
       - /opt/services/phd-data/datasets:/mnt/phd-datasets:ro
+      - /opt/services/phd-data/results:/mnt/phd-results:ro
