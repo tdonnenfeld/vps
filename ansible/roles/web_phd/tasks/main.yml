@@ -64,6 +64,15 @@
     - workspaces
   when: not ansible_check_mode
 
+- name: Create private web artifact storage
+  ansible.builtin.file:
+    path: /opt/services/phd-data/artifacts
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when: not ansible_check_mode
+
 - name: Create runner installation directory
   ansible.builtin.file:
     path: /var/lib/phd-runner/actions-runner
